@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pferdehof – Putzen & Reiten</title>
+<style>
+  :root { --tile: 120px; --stall:#f6f3ee; --rail:#c8b79e; --accent:#10b981; }
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:linear-gradient(#eef7ff,#f7fff3)}
+  .wrap{max-width:1100px;margin:0 auto;padding:12px}
+  header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+  h1{margin:0;font-size:clamp(20px,3.5vw,28px);color:#064e3b}
+  button{cursor:pointer;border:1px solid #0ea5e9;background:#0ea5e9;color:#fff;border-radius:12px;padding:10px 14px;font-weight:600}
+  button.secondary{background:#fff;color:#111;border-color:#e5e7eb}
+  button:disabled{opacity:.6;cursor:not-allowed}
+  .panel{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.06);padding:14px}
+  .row{display:grid;gap:12px}
+  .two{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .names{display:flex;gap:8px;flex-wrap:wrap}
+  .name{border:1px solid #e5e7eb;background:#fff;color:#111;border-radius:999px;padding:8px 12px}
+  .name.active{background:#ecfeff;border-color:#7dd3fc}
+  /* Spielfläche */
+  .stage{margin-top:12px;display:grid;grid-template-columns:280px 1fr;gap:12px}
+  .tools{display:grid;gap:10px}
+  .tool{display:flex;align-items:center;gap:8px;border:2px solid #000;background:#fff;border-radius:12px;padding:10px}
+  .tool.done{background:#ecfdf5;border-color:#000}
+  .tool .dot{width:14px;height:14px;border:2px solid #000;border-radius:50%;background:#fff}
+  .tool.done .dot{background:#10b981}
+  .stall{position:relative;background:var(--stall);border:4px solid #000;border-radius:16px;min-height:420px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .rail{position:absolute;inset:auto 0 0 0;height:64px;background:repeating-linear-gradient(90deg,var(--rail),var(--rail) 40px,#b6a584 40px,#b6a584 80px)}
+  .msg{margin:8px 0;font-weight:600}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .big{font-size:18px}
+  /* SVG-Pferd (Platzhalter – echte Grafiken später möglich) */
+  .horse svg{max-width:520px;width:100%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.15))}
+  .badge{position:absolute;top:8px;left:8px;background:#fff;border:2px solid #000;border-radius:10px;padding:6px 10px;font-weight:700}
+  .progress{height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden;border:2px solid #000}
+  .bar{height:100%;width:0;background:linear-gradient(90deg,#10b981,#22c55e)}
+  .hint{font-size:13px;color:#475569}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🐴 Pferdehof – Putzen & Reiten</h1>
+    <div class="actions">
+      <button id="btnRestart" class="secondary">Neues Spiel</button>
+      <button id="btnBack" class="secondary">Zurück</button>
+      <button id="btnMute" class="secondary">🔊 Ton an/aus</button>
+    </div>
+  </header>
+
+  <!-- STARTSCREEN -->
+  <section id="start" class="panel">
+    <h2 style="margin:0 0 8px">Willkommen am Reiterhof!</h2>
+    <p class="hint">Die kleine Fee erklärt dir gleich die Regeln. Wähle erst ein Pferd und einen Namen.</p>
+
+    <div class="row two">
+      <div>
+        <h3>Pferd wählen</h3>
+        <div class="names" id="horseChoices">
+          <!-- Pferde-Auswahl -->
+        </div>
+      </div>
+      <div>
+        <h3>Namen wählen (antippen = vorlesen)</h3>
+        <div class="names" id="nameChoices">
+          <!-- Namens-Auswahl -->
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button id="btnExplain" class="secondary">✨ Fee erklärt die Regeln</button>
+      <button id="btnStart" class="big">Spiel starten</button>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="panel" style="display:none">
+    <div class="msg" id="status">Los geht’s! Erst wird geputzt.</div>
+    <div class="progress"><div class="bar" id="bar"></div></div>
+    <div class="stage">
+      <aside class="tools" id="toolList"></aside>
+
+      <div class="stall">
+        <div class="badge" id="badgeName">Pferd</div>
+        <div class="horse" id="horseSvg">
+          <!-- SVG Pferd -->
+        </div>
+        <div class="rail"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button id="btnSaddle" class="secondary" disabled>🪝 Sattel & Trense aufsetzen</button>
+      <span class="hint">Tipp: Tippe Gegenstände/Körperteile an – sie werden benannt und die Aktion startet.</span>
+    </div>
+  </section>
+</div>
+
+<!-- AUDIO-PLATZHALTER: Ersetze src durch eigene MP3/WAV-URLs -->
+<audio id="sfx_stable" loop src="" preload="none"></audio>     <!-- Stall-Atmo -->
+<audio id="sfx_brush"  src="" preload="none"></audio>          <!-- Striegel/Kardätsche -->
+<audio id="sfx_hoof"   src="" preload="none"></audio>          <!-- Hufe auskratzen -->
+<audio id="sfx_comb"   src="" preload="none"></audio>          <!-- Kamm -->
+<audio id="sfx_wipe"   src="" preload="none"></audio>          <!-- Beine bürsten -->
+
+<script>
+/* ===========================
+   Stimmen / Sprachausgabe (DE)
+   =========================== */
+let muted = false;
+let cachedVoice = null;
+function pickGermanVoice(){
+  if (cachedVoice) return cachedVoice;
+  const voices = speechSynthesis.getVoices?.() || [];
+  const prefer = ["Google Deutsch", "Google German", "Microsoft Katja", "Microsoft Hedda", "Microsoft Lena", "de-DE"];
+  for (const p of prefer){
+    const v = voices.find(v => (v.name||"").includes(p) || (v.lang||"").toLowerCase()==="de-de");
+    if (v) { cachedVoice = v; return v; }
+  }
+  return null;
+}
+function speak(text, rate=1){
+  if (!text || muted) return;
+  if (!("speechSynthesis" in window)) return;
+  const u = new SpeechSynthesisUtterance(text);
+  const v = pickGermanVoice();
+  if (v) u.voice = v;
+  u.lang = v?.lang || "de-DE";
+  u.rate = rate;
+  u.pitch = 1.0;
+  u.volume = 1.0;
+  try { speechSynthesis.cancel(); } catch(e){}
+  speechSynthesis.speak(u);
+}
+if ("speechSynthesis" in window && window.speechSynthesis.onvoiceschanged !== undefined) {
+  window.speechSynthesis.onvoiceschanged = () => { cachedVoice=null; pickGermanVoice(); };
+}
+
+/* ===========================
+   Daten
+   =========================== */
+const HORSES = [
+  { id:"braun",  label:"Braunes Pferd",  fill:"#7b4e2d" },
+  { id:"rapp",   label:"Schwarzes Pferd",fill:"#2b2b2b" },
+  { id:"schimmel",label:"Weißes Pferd",  fill:"#eaeaea" }
+];
+const NAMES = ["Bella","Sternchen","Luna","Fanny","Molly","Amira","Nala","Maja"];
+
+/* Pflege-Reihenfolge (Gate) */
+const STEPS = [
+  { id:"hoof",    label:"Hufe auskratzen",  tool:"Hufkratzer",    sfx:"sfx_hoof"  },
+  { id:"striegel",label:"Striegeln",        tool:"Striegel",      sfx:"sfx_brush" },
+  { id:"mane",    label:"Mähne & Schweif kämmen", tool:"Kamm",    sfx:"sfx_comb"  },
+  { id:"legs",    label:"Beine bürsten",    tool:"Bürste",        sfx:"sfx_wipe"  },
+  { id:"card",    label:"Kardätsche benutzen", tool:"Kardätsche", sfx:"sfx_brush" }
+];
+
+let chosenHorse = HORSES[0];
+let chosenName = NAMES[0];
+let progress = 0; // 0..STEPS.length
+let doing = null; // aktueller Step-ID oder null
+
+/* ===========================
+   UI: Startscreen
+   =========================== */
+const elStart = document.getElementById("start");
+const elGame  = document.getElementById("game");
+const elHorseChoices = document.getElementById("horseChoices");
+const elNameChoices  = document.getElementById("nameChoices");
+
+function renderChoices(){
+  elHorseChoices.innerHTML="";
+  HORSES.forEach(h=>{
+    const b = document.createElement("button");
+    b.className = "name" + (h.id===chosenHorse.id?" active":"");
+    b.textContent = h.label;
+    b.onclick = () => { chosenHorse = h; renderChoices(); speak(h.label); };
+    elHorseChoices.appendChild(b);
+  });
+  elNameChoices.innerHTML="";
+  NAMES.forEach(n=>{
+    const b = document.createElement("button");
+    b.className = "name" + (n===chosenName?" active":"");
+    b.textContent = n;
+    b.onclick = () => { chosenName = n; renderChoices(); speak(n); };
+    elNameChoices.appendChild(b);
+  });
+}
+renderChoices();
+
+document.getElementById("btnExplain").onclick = () => {
+  speak("Hallo! Ich bin deine Reiterhof-Fee. Wir putzen das Pferd in der richtigen Reihenfolge: Zuerst die Hufe auskratzen, dann striegeln, dann Mähne und Schweif kämmen, danach die Beine bürsten und zum Schluss die Kardätsche. Tippe einfach auf die Gegenstände. Wenn alles sauber ist, setzen wir Sattel und Trense auf. Viel Spaß!", 1.0);
+};
+document.getElementById("btnStart").onclick = startGame;
+document.getElementById("btnBack").onclick = () => { showStart(); };
+document.getElementById("btnRestart").onclick = () => { resetGame(); };
+document.getElementById("btnMute").onclick = () => {
+  muted = !muted;
+  if (!muted) speak("Ton eingeschaltet.");
+};
+
+/* ===========================
+   Spiel starten
+   =========================== */
+const elStatus = document.getElementById("status");
+const elBar    = document.getElementById("bar");
+const elToolList = document.getElementById("toolList");
+const elHorseSvg = document.getElementById("horseSvg");
+const elBadgeName= document.getElementById("badgeName");
+const elSaddle   = document.getElementById("btnSaddle");
+
+function startGame(){
+  elStart.style.display="none";
+  elGame.style.display="block";
+  progress = 0; doing=null;
+  elBadgeName.textContent = chosenName;
+  buildHorse();
+  buildTools();
+  updateUI();
+  // Stall-Atmo optional starten
+  // document.getElementById("sfx_stable").play().catch(()=>{});
+  speak(`Das ist ${chosenName}, unser ${chosenHorse.label.toLowerCase()}. Los geht's!`);
+}
+
+function showStart(){
+  elGame.style.display="none";
+  elStart.style.display="block";
+}
+
+function resetGame(){
+  progress=0; doing=null;
+  elSaddle.disabled = true;
+  buildTools(); updateUI();
+  speak("Neue Runde! Wir starten wieder mit den Hufen.");
+}
+
+/* ===========================
+   Tools & Schritte
+   =========================== */
+function buildTools(){
+  elToolList.innerHTML="";
+  STEPS.forEach((step, idx)=>{
+    const item = document.createElement("button");
+    item.className = "tool" + (idx < progress ? " done":"");
+    item.onclick = () => tryDoStep(step, idx);
+    const dot = document.createElement("div"); dot.className="dot";
+    const label = document.createElement("div");
+    label.innerHTML = `<b>${step.tool}</b><br><span class="hint">${step.label}</span>`;
+    item.appendChild(dot); item.appendChild(label);
+    elToolList.appendChild(item);
+  });
+}
+
+function tryDoStep(step, idx){
+  // Benennung
+  speak(step.tool);
+  // Reihenfolge erzwingen
+  if (idx !== progress){
+    speak("Erst " + STEPS[progress].label + ".", .95);
+    pulseStatus(`Erst: ${STEPS[progress].label}`);
+    return;
+  }
+  // Aktion ausführen
+  doing = step.id;
+  playSfx(step.sfx);
+  animateHorse(step.id, ()=> {
+    stopSfx(step.sfx);
+    progress++;
+    doing = null;
+    updateUI();
+    buildTools();
+    if (progress === STEPS.length){
+      elSaddle.disabled = false;
+      speak("Super! Jetzt können wir Sattel und Trense aufsetzen.");
+      pulseStatus("Alles sauber! Jetzt Sattel & Trense.");
+    } else {
+      speak("Sehr gut! Weiter geht's.");
+    }
+  });
+}
+
+elSaddle.onclick = () => {
+  if (progress < STEPS.length) return;
+  speak("Sattel und Trense werden aufgesetzt.");
+  // kleine Sattel-Animation:
+  const s = document.getElementById("saddleMark");
+  if (s){ s.style.opacity = 1; s.style.transform = "translateY(0)"; }
+  pulseStatus("Bereit zum Reiten! 🎉");
+};
+
+/* ===========================
+   Pferd (SVG Platzhalter)
+   =========================== */
+function buildHorse(){
+  elHorseSvg.innerHTML = `
+  <svg viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" aria-label="Pferd in Stallbox">
+    <!-- Stall Bretter -->
+    <rect x="0" y="0" width="600" height="400" fill="#f5efe6"/>
+    <g id="horseGroup">
+      <!-- Körper -->
+      <ellipse cx="320" cy="220" rx="170" ry="90" fill="${chosenHorse.fill}" stroke="#000" stroke-width="4"/>
+      <!-- Hals -->
+      <rect x="380" y="120" width="80" height="120" fill="${chosenHorse.fill}" stroke="#000" stroke-width="4" transform="rotate(-15 380 120)"/>
+      <!-- Kopf -->
+      <ellipse cx="470" cy="130" rx="55" ry="40" fill="${chosenHorse.fill}" stroke="#000" stroke-width="4"/>
+      <!-- Auge -->
+      <circle cx="485" cy="125" r="6" fill="#111"/>
+      <!-- Mähne -->
+      <path d="M420,100 C430,120 440,140 450,155" stroke="#111" stroke-width="10" fill="none"/>
+      <!-- Beine -->
+      <rect x="250" y="260" width="20" height="100" fill="${chosenHorse.fill}" stroke="#000" stroke-width="4"/>
+      <rect x="300" y="260" width="20" height="100" fill="${chosenHorse.fill}" stroke="#000" stroke-width="4"/>
+      <rect x="350" y="260" width="20" height="100" fill="${chosenHorse.fill}" stroke="#000" stroke-width="4"/>
+      <rect x="400" y="260" width="20" height="100" fill="${chosenHorse.fill}" stroke="#000" stroke-width="4"/>
+      <!-- Hufe -->
+      <rect x="250" y="360" width="20" height="12" fill="#333"/>
+      <rect x="300" y="360" width="20" height="12" fill="#333"/>
+      <rect x="350" y="360" width="20" height="12" fill="#333"/>
+      <rect x="400" y="360" width="20" height="12" fill="#333"/>
+      <!-- Schweif -->
+      <path d="M170,220 c-30,20 -40,50 -15,80" stroke="#111" stroke-width="12" fill="none"/>
+      <!-- Sattel/Trense Markierungen -->
+      <g id="saddleMark" style="opacity:0;transform:translateY(-10px);transition:all .6s ease">
+        <rect x="300" y="160" width="110" height="60" rx="10" fill="#8b5cf6" stroke="#000" stroke-width="4"/>
+        <path d="M430,130 c30,-10 40,5 40,5" stroke="#000" stroke-width="4" fill="none"/>
+        <circle cx="465" cy="135" r="6" fill="#000"/>
+      </g>
+    </g>
+  </svg>`;
+}
+
+/* Animation: kleines „Glänzen“/Wackeln je nach Schritt */
+function animateHorse(stepId, done){
+  const g = document.getElementById("horseGroup");
+  if (!g){ done?.(); return; }
+  // einfache Step-bezogene Animation
+  g.style.transition = "transform .15s ease";
+  let reps = 0;
+  const timer = setInterval(()=>{
+    reps++;
+    g.style.transform = (reps%2) ? "translateY(-3px)" : "translateY(0)";
+    if (reps>6){ clearInterval(timer); g.style.transform=""; done?.(); }
+  }, 120);
+}
+
+/* ===========================
+   Status & Audio
+   =========================== */
+function updateUI(){
+  elStatus.textContent = (progress<STEPS.length)
+    ? `Als Nächstes: ${STEPS[progress].label}`
+    : "Alles sauber! Jetzt Sattel & Trense.";
+  const pct = Math.round((progress/STEPS.length)*100);
+  elBar.style.width = pct + "%";
+}
+
+function pulseStatus(txt){
+  elStatus.textContent = txt;
+  elStatus.style.transition="transform .12s ease";
+  elStatus.style.transform="scale(1.02)";
+  setTimeout(()=>{ elStatus.style.transform=""; }, 120);
+}
+
+function playSfx(id){
+  if (muted) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  try{ el.currentTime = 0; el.play(); }catch{}
+}
+function stopSfx(id){
+  const el = document.getElementById(id);
+  if (!el) return;
+  try{ el.pause(); }catch{}
+}
+
+/* ===========================
+   Init: Auswahl rendern
+   =========================== */
+(function init(){
+  const hc = document.getElementById("horseChoices");
+  const nc = document.getElementById("nameChoices");
+  // (Render läuft bereits in renderChoices())
+})();
+</script>
+</body>
+</html>
